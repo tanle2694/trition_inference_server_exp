@@ -19,51 +19,48 @@ import os
 # from threading import Timer
 
 from flask import Flask, render_template, request
-from trtis_client import get_prediction, random_image
+from trtis_client import get_prediction, random_image, connect_to_server
 
 app = Flask(__name__)
 
 name_arg = os.getenv('MODEL_SERVE_NAME', 'resnet_graphdef')
-addr_arg = os.getenv('TRTSERVER_HOST', '0.0.0.0')
+addr_arg = os.getenv('TRTSERVER_HOST', '10.0.64.132')
 port_arg = os.getenv('TRTSERVER_PORT', '8001')
 model_version = os.getenv('MODEL_VERSION', '2')
+
 
 # handle requests to the server
 @app.route("/")
 def main():
+  connection = None
   args = {"name": name_arg, "addr": addr_arg, "port": port_arg, "version": str(model_version)}
-  logging.info("Request args: %s", args)
+  return render_template('index_connect.html', connection=connection, args=args)
 
+
+@app.route("/connect", methods=['POST'])
+def connect():
+  data = request.form.to_dict(flat=False)
+  print(data)
+  server_host = data['addr'][0]
+  server_port = data['port'][0]
+  model_name = data['name'][0]
+  model_version = str(data['version'][0])
+  args = {"name": model_name, "addr": server_host, "port": server_port, "version": model_version}
+  connection = connect_to_server(server_host, server_port, model_name, model_version)
   output = None
-  connection = {"text": "", "success": False}
-  try:
-    # get a random test MNIST image
-    current_dir = str(pathlib.Path(__file__).parent.absolute())
-    print(os.path.join(current_dir, 'static/images/'))
-    file_name, truth, serving_path = random_image(os.path.join(current_dir, 'static/images/'))
-    # get prediction from TensorFlow server
-    pred, scores = get_prediction(file_name,
-                                  server_host=addr_arg,
-                                  server_port=int(port_arg),
-                                  model_name=name_arg,
-                                  model_version=int(model_version))
-    # if no exceptions thrown, server connection was a success
-    connection["text"] = "Connected (model version: {0}".format(str(model_version))+ ")"
-    connection["success"] = True
-    # parse class confidence scores from server prediction
-    output = {"truth": truth, "prediction": pred,
-              "img_path": serving_path, "scores": scores}
-  except Exception as e:  # pylint: disable=broad-except
-    logging.info("Exception occured: %s", e)
-    logging.error(e, exc_info=True)
-    # server connection failed
-    connection["text"] = "Exception making request: {0}".format(e)
-  # after 10 seconds, delete cached image file from server
-  # t = Timer(10.0, remove_resource, [img_path])
-  # t.start()
-  # render results using HTML template
-  return render_template('index.html', output=output,
-                         connection=connection, args=args)
+  if connection['success']:
+      current_dir = str(pathlib.Path(__file__).parent.absolute())
+      print(os.path.join(current_dir, 'static/images/'))
+      file_name, truth, serving_path = random_image(os.path.join(current_dir, 'static/images/'))
+      # get prediction from TensorFlow server
+      pred, scores = get_prediction(file_name,
+                                    server_host=addr_arg,
+                                    server_port=int(port_arg),
+                                    model_name=name_arg,
+                                    model_version=int(model_version))
+      output = {"truth": truth, "prediction": pred,
+            "img_path": serving_path, "scores": scores}
+  return render_template('index.html', connection=connection, args=args, output=output)
 
 
 def remove_resource(path):

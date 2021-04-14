@@ -273,6 +273,38 @@ def requestGenerator(batched_image_data, input_name, output_name, dtype, model_n
     yield inputs, outputs, model_name, model_version
 
 
+def connect_to_server(server_host, server_port, model_name, model_version):
+    url = f"{server_host}:{server_port}"
+    verbose = False
+    # connection = {"text": f"Connected to server {server_host}:{server_port}, model: {model_name}, "
+    #                       f"version: {model_version}", "success": True}
+    connection = {"text": "", "success": False}
+    try:
+        triton_client = grpcclient.InferenceServerClient(
+            url=url, verbose=verbose)
+        connection = {"text": f"Connected to server {server_host}:{server_port}, model: {model_name}, "
+                              f"version: {model_version}", "success": True}
+    except Exception as e:
+        connection = {"text": f"Client creation failed {server_host}:{server_port}", "success": False}
+        return connection
+    try:
+        model_metadata = triton_client.get_model_metadata(
+            model_name=model_name, model_version=model_version)
+    except InferenceServerException as e:
+        connection = {"text": f"Failed to retrieve the metadata: {server_host}:{server_port}, model: {model_name}, "
+                              f"version: {model_version}", "success": False}
+        return connection
+
+    try:
+        model_config = triton_client.get_model_config(
+            model_name=model_name, model_version=model_version)
+    except InferenceServerException as e:
+        connection = {"text": f"Failed to retrieve the config: {server_host}:{server_port}, model: {model_name}, "
+                             f"version: {model_version}", "success": False}
+        return connection
+
+    return connection
+
 def get_prediction(image_filename, server_host='10.0.64.132', server_port=8001,
                    model_name="inception_graphdef", model_version=None):
     url = f"{server_host}:{server_port}"
