@@ -27,3 +27,4 @@ instance_group [
     kind: KIND_GPU
   }
 ]
+version_policy: { all { }}
