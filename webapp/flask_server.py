@@ -30,7 +30,7 @@ model_version = os.getenv('MODEL_VERSION', '2')
 
 
 # handle requests to the server
-@app.route("/")
+@app.route("/", methods=['POST', 'GET'])
 def main():
   connection = None
   args = {"name": name_arg, "addr": addr_arg, "port": port_arg, "version": str(model_version)}
